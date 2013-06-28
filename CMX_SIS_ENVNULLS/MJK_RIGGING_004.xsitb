@@ -1,0 +1,1641 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+
+<xsi_file type="Shelf" xsi_version="6.5.2007.0829" syntax_version="1.0">
+   <shelf_view name="MJK_RIGGING_003_organized.xsitb" clsid="{746C0645-F0DC-47F1-8852-D01445EA8A18}">
+      <properties>
+         <showtabs>false</showtabs>
+      </properties>
+      <definition maxinstances="10000" acceptfocus="true" private="false" defaultsize="0,100,200,300" cmdmap="{00000000-0000-0000-0000-000000000000}" supportedtypes="6" category=""></definition>
+      <tabs layout="top" active="DS Toolbar">
+         <tab label="DS Toolbar" type="toolbar">
+            <properties id="{8D390A93-02E5-440F-B1F2-66E0B5B8D032}" name="" display_preset_as_small="False" display_as_text_only="False"></properties>
+            <item type="separator" mode="group_header" group_name="VIEWING"></item>
+            <item type="scriptbutton" label="XRAY" scriptengine="VBScript" tooltip="">
+               <scripttext>&lt;![CDATA[ToggleValue &quot;xrayshaded&quot;, &quot;*.*.*.camdisp&quot; ]]&gt;</scripttext>
+            </item>
+            <item type="command" name="Isolate Selected"></item>
+            <item type="separator" mode="group_header" group_name="SELECTING"></item>
+            <item type="popup_menu" name="Selection">
+               <command name="Select Child"></command>
+               <command name="Select Parents"></command>
+               <command name="Select Last Sib"></command>
+               <command name="Select Next Sib"></command>
+            </item>
+            <item type="scriptbutton" label="SelChilds" scriptengine="Python.AXScript.2" tooltip="">
+               <scripttext>&lt;![CDATA[#Author: Stephen Wagner
+#Requested: Matt Kapfhammer
+#Version: 1.1
+#Cinemanix Productions
+#Release: 20071104
+#Langauge: Python
+
+#For XSI 5.11 on Windows 2k/XP
+#==========================================================
+
+#Abstract: Script selects all children of an object, or
+#recursively selects all children of children of...a
+#selected object. This differs from &quot;branch&quot; selection
+#mode.
+
+#LEFT MOUSE BUTTON: Select immediate children of picked object.
+#CTRL + LEFT MOUSE BUTTON: Select all children of picked object.
+
+#Script Use: Running the script will initiate a picking session,
+#wherein the picked object and it's children (depending on the
+#control key) will become the selected objects.
+
+#Version History: Transcribed to Python. Second Release, adds
+#requested functionality.
+#==========================================================
+
+xsi = Application
+
+def TrueChildSelect( rflag,oSpace ):
+    if (rflag == 1):
+            for thing in xsi.Selection:
+                try:
+                    xsi.AddToSelection(thing.Children)
+                except Exception:
+                    xsi.LogMessage(&quot;&quot;)
+    else:
+        for thing in oSpace:
+        	xsi.AddToSelection(thing.Children)
+
+#rPicked, rButton, rMod
+rarPicked = xsi.PickObject(&quot;Select Immediate Children&quot;,&quot;[CTRL + LMB] Select All Children&quot;)
+xsi.DeselectAll()
+xsi.SelectObj(rarPicked.Value(&quot;PickedElement&quot;))
+#xsi.LogMessage(rarPicked(0))
+oSpace = xsi.GetValue(&quot;SelectionList&quot;)
+
+if rarPicked.Value(&quot;ButtonPressed&quot;) == 1:
+    if rarPicked.Value(&quot;ModifierPressed&quot;) == 2:
+        xsi.LogMessage(&quot;debug SELECT ALL CHILDREN-CTRL&quot;)
+        TrueChildSelect( 1,oSpace )
+    else:
+        xsi.LogMessage(&quot;debug SELECT IMMEDIATE CHILDREN&quot;)
+        TrueChildSelect( 0,oSpace )
+        ]]&gt;</scripttext>
+            </item>
+            <item type="separator" mode="group_header" group_name="NAMING"></item>
+            <item type="popup_menu" name="Naming">
+               <command name="Name Replace"></command>
+               <command name="Rem Num Suff"></command>
+               <command name="Menu Separator"></command>
+               <command name="Name Sequence"></command>
+               <command name="Name Symmetry"></command>
+               <command name="Menu Separator"></command>
+               <command name="Name Parent"></command>
+               <command name="Name From Parent"></command>
+               <command name="Menu Separator"></command>
+               <command name="Name Chain"></command>
+            </item>
+            <item type="scriptbutton" label="BG_Rename" scriptengine="JScript" tooltip="">
+               <scripttext>&lt;![CDATA[function XSILoadPlugin(in_reg){
+	// Set info for the plug-in module
+	in_reg.Author = &quot;Bradley Gabe&quot;;
+	in_reg.Name = &quot;brg_Rename&quot;;
+
+	in_reg.Major = 1;  
+	in_reg.Minor = 0;
+	
+	
+	in_reg.RegisterMenu(siMenuMainApplicationID, 'brg_RenameMenu', false, false);
+	
+	in_reg.RegisterCommand( 'brg Replace', 'brgReplace' );
+	in_reg.RegisterCommand( 'brg Find Names', 'brgFindNames' );
+	in_reg.RegisterCommand( 'brg Replace Names', 'brgReplaceNames' );
+	
+	in_reg.RegisterProperty('brg_ReplaceGUI');
+	
+	
+	return true;
+}
+
+// INIT COMMANDS ==============================================================
+function brgReplace_Init( in_context ){
+}
+
+
+function brgFindNames_Init( in_context ){
+	var cmd = in_context.Source;
+	var args = cmd.Arguments;
+	args.Add( 'findStr', siArgumentInput, '', siString );
+	args.Add( 'filterType', siArgumentInput, 0, siInt4 );
+	args.Add( 'matchCase', siArgumentInput, 0, siBool );
+	args.AddWithHandler( 'nodeColl', siArgHandlerCollection, &quot;*&quot; );
+	
+}
+
+function brgReplaceNames_Init( in_context ){
+	var cmd = in_context.Source;
+	var args = cmd.Arguments;
+	args.AddWithHandler( 'nodeColl', siArgHandlerCollection, &quot;*&quot; );
+	args.Add( 'findStr', siArgumentInput, '', siString );
+	args.Add( 'repStr', siArgumentInput, '', siString );
+	args.Add( 'matchCase', siArgumentInput, 0, siBool );
+	args.Add( 'logReport', siArgumentInput, 0, siBool );
+	
+}
+
+function brgReplace_Execute( in_arg ){
+	Replace();
+}
+
+function brgFindNames_Execute( findStr, filterType, matchCase, nodeColl ){
+	FindNames( findStr, filterType, matchCase, nodeColl );
+}
+
+function brgReplaceNames_Execute( nodeColl, findStr, repStr, matchCase, logReport ){
+	ReplaceNames( nodeColl, findStr, repStr, matchCase, logReport );
+}
+
+// MENU FUNCTIONS ======================================================
+function brg_RenameMenu_Init( io_Context ){
+	
+	var oMenu = io_Context.Source;
+	var subMenu = oMenu.AddItem( &quot;brg Rename Tools&quot;, siMenuItemSubmenu );
+	subMenu.AddCallbackItem( &quot;Name Replace&quot;,&quot;brg_ReplaceMenuClicked&quot; );
+}
+
+function brg_ReplaceMenuClicked()
+{
+	brgReplace();
+}
+
+
+// RENAME FUNCTIONS =========================================================
+function Replace()
+{
+	// Get stored find
+	findColl = new ActiveXObject('XSI.Collection');
+	findColl.items = 'preferences.brg_Replace'
+	if (findColl.count){
+		PPG = findColl(0);
+	}
+	else{
+		var PPG = ActiveSceneRoot.AddProperty('brg_ReplaceGUI', 0 ,'brg_Replace');
+		InstallCustomPreferences(PPG, 'brg_Replace');
+		findColl.items = 'preferences.brg_Replace';
+		PPG = findColl(0);
+	}
+	
+	InspectObj(PPG, '', 'Replace', siLock, 0);
+}
+
+function brg_ReplaceGUI_Define(io_Context){
+	
+	var prop = io_Context.source;
+	
+	prop.AddParameter2('find', siString, '', 0, 1, 0, 0, 0, 0);
+	prop.AddParameter2('findFilter', siInt4, 0, 0, 3, 0, 3, 0, 0);
+	prop.AddParameter2('matchCase', siBool, 0, 0, 1, 0, 0, 0, 0);
+	prop.AddParameter2('replace', siString, '', 0, 1, 0, 0, 0, 0);
+	prop.AddParameter2('logReport', siBool, 0, 0, 1, 0, 0, 0, 0);
+	
+} //-------------------------------------------------------------------------------------------------------------
+
+
+/* defines the GUI layout  */
+function brg_ReplaceGUI_DefineLayout(io_Context){
+	var layout = io_Context.source;
+	layout.clear();
+	
+	layout.AddGroup('Find');
+		layout.AddItem('find', 'Find what');
+		layout.AddItem('matchCase', 'Match case');
+		layout.AddEnumControl(
+			'findFilter',
+			['any instance', 0, 'as prefix', 1, 'as suffix', 2, 'in middle', 3],
+			'Find where',
+			'Radio'
+		);		
+	
+		layout.AddRow();
+			layout.AddGroup('', false, 40);
+			layout.EndGroup();
+			
+			layout.AddGroup('', false, 20);
+				var button = layout.AddButton('FindSel', 'Find In Sel');
+				button.SetAttribute(siUICX, '100');
+			layout.EndGroup();
+				
+			layout.AddGroup('', false, 5);
+			layout.EndGroup();
+			
+			layout.AddGroup('', false, 20);
+				var button = layout.AddButton('FindAll', 'Find All');
+				button.SetAttribute(siUICX, '100');
+			layout.EndGroup();
+			
+			layout.AddGroup('', false, 5);
+			layout.EndGroup();
+			
+		layout.EndRow();
+		
+	layout.EndGroup();
+	
+	layout.AddGroup('Replace');
+		layout.AddItem('replace', 'Replace with');
+		layout.AddItem('logReport', 'Log Report');
+	
+		layout.AddRow();			
+			layout.AddGroup('', false, 40);
+			layout.EndGroup();
+			
+			layout.AddGroup('', false, 20);
+				var button = layout.AddButton('ReplaceSel', 'Replace In Sel');
+				button.SetAttribute(siUICX, '100');
+			layout.EndGroup();
+			
+			layout.AddGroup('', false, 5);
+			layout.EndGroup();
+			
+			layout.AddGroup('', false, 20);
+				var button = layout.AddButton('ReplaceAll', 'Replace All');
+				button.SetAttribute(siUICX, '100');
+			layout.EndGroup();
+			
+			layout.AddGroup('', false, 5);
+			layout.EndGroup();
+			
+		layout.EndRow();
+		
+	layout.EndGroup();
+	
+}
+function brg_ReplaceGUI_FindSel_OnClicked(){ ReplaceGUI_FindSel();}
+function brg_ReplaceGUI_FindAll_OnClicked(){ ReplaceGUI_FindAll();}
+function brg_ReplaceGUI_ReplaceSel_OnClicked(){ ReplaceGUI_ReplaceSel();}
+function brg_ReplaceGUI_ReplaceAll_OnClicked(){ ReplaceGUI_ReplaceAll();}
+
+function ReplaceGUI_FindSel()
+{
+	var PPGname = PPG.Inspected.Item(0);
+	var findColl = new ActiveXObject('XSI.Collection');
+	findColl.Items = PPGname;
+	
+	if (!findColl.count || !Selection.count){
+		return;		
+	}
+		
+	var prop = findColl(0);
+	var findStr = prop.find.value;	
+	var filterType = prop.findFilter.value;
+	var matchCase = prop.matchCase.value;
+	
+	brgFindNames( findStr, filterType, matchCase, Selection );
+	
+}
+
+function ReplaceGUI_FindAll()
+{
+	var PPGname = PPG.Inspected.Item(0);
+	var findColl = new ActiveXObject('XSI.Collection');
+	findColl.Items = PPGname;
+	
+	if (!findColl.count){
+		return;		
+	}
+	
+	var prop = findColl(0);
+	var findStr = prop.find.value;	
+	var filterType = prop.findFilter.value;
+	var matchCase = prop.matchCase.value;
+	
+	brgFindNames( findStr, filterType, matchCase );
+}
+
+function ReplaceGUI_ReplaceSel()
+{
+	var PPGname = PPG.Inspected.Item(0);
+	var findColl = new ActiveXObject('XSI.Collection');
+	findColl.Items = PPGname;
+	
+	if (!findColl.count || !Selection.count){
+		return;		
+	}
+		
+	var prop = findColl(0);
+	var findStr = prop.find.value;	
+	var repStr = prop.replace.value;	
+	var filterType = prop.findFilter.value;
+	var matchCase = prop.matchCase.value;
+	var log = prop.logReport.value;
+	
+	foundColl = FindNames( findStr, filterType, matchCase, Selection );
+	brgReplaceNames( foundColl, findStr, repStr, matchCase, log );	
+}
+
+function ReplaceGUI_ReplaceAll()
+{
+	var PPGname = PPG.Inspected.Item(0);
+	var findColl = new ActiveXObject('XSI.Collection');
+	findColl.Items = PPGname;
+	
+	if (!findColl.count || !Selection.count){
+		return;		
+	}
+		
+	var prop = findColl(0);
+	var findStr = prop.find.value;	
+	var repStr = prop.replace.value;	
+	var filterType = prop.findFilter.value;
+	var matchCase = prop.matchCase.value;
+	var log = prop.logReport.value;
+	
+	foundColl = FindNames( findStr, filterType, matchCase );
+	brgReplaceNames( foundColl, findStr, repStr, matchCase, log );
+}
+
+
+function FindNames( findStr, filterType, matchCase, nodeColl )
+{	
+	var n = findStr.length;
+	var findColl = new ActiveXObject('XSI.Collection');
+	
+	if(!nodeColl){
+		nodeColl = new ActiveXObject('XSI.Collection');
+		nodeColl.Items = '*';
+	}
+	
+	if(!matchCase){
+		findStr = findStr.toLowerCase(); 
+	}
+
+	if(filterType == 0){
+		for(var e = new Enumerator(nodeColl); !e.atEnd(); e.moveNext() ){
+			var node = e.item();
+			var nm = node.name;
+			if(!matchCase){ nm = nm.toLowerCase(); }
+			
+			if( nm.indexOf( findStr ) &gt; -1){
+				findColl.Add(node);
+			}
+		}
+	}
+
+	if(filterType == 1){
+		for(var e = new Enumerator(nodeColl); !e.atEnd(); e.moveNext() ){
+			var node = e.item();
+			var nm = node.name;
+			if(!matchCase){ nm = nm.toLowerCase(); }
+			
+			if( nm.indexOf( findStr ) == 0){
+				findColl.Add(node);
+			}
+		}
+	}
+	
+	if(filterType == 2){
+		for(var e = new Enumerator(nodeColl); !e.atEnd(); e.moveNext() ){
+			var node = e.item();
+			var nm = node.name;
+			if(!matchCase){ nm = nm.toLowerCase(); }
+			
+			if( nm.lastIndexOf( findStr ) == (nm.length - n) ){
+				findColl.Add(node);
+			}
+		}
+	}
+	
+	if(filterType == 3){
+		for(var e = new Enumerator(nodeColl); !e.atEnd(); e.moveNext() ){
+			var node = e.item();
+			var nm = node.name;
+			if(!matchCase){ nm = nm.toLowerCase(); }
+			
+			if( nm.indexOf( findStr ) &gt; 0 &amp;&amp; nm.lastIndexOf( findStr ) &lt; (nm.length - n)){
+				findColl.Add(node);
+			}
+		}
+	}
+	
+	SelectObj(findColl);
+	return(findColl);
+	
+}
+
+
+function ReplaceNames( nodeColl, findStr, repStr, matchCase, logReport)
+{
+	var srcArr = new Array();
+	var repArr = new Array();
+
+	if( !nodeColl.count ){
+		LogMessage('Replaced 0 node names');
+		return
+	}
+	
+	
+	var nameList = nodeColl + '';
+	if( !matchCase ){
+		re = new RegExp(findStr, 'ig');
+	}
+	else{
+		re = new RegExp(findStr, 'g');
+	}
+	
+	var i=0;
+	for(var e = new Enumerator(nodeColl); !e.atEnd(); e.moveNext() ){
+		var nm = e.item().name;
+		srcArr[i] = e.item().fullname;
+		var rep = nm.replace(re, repStr);
+		e.item().name = rep;
+		repArr[i++] = e.item().fullname;
+	}
+	
+	LogMessage('Replaced ' + nodeColl.count + ' node names');
+	if( logReport ){
+		
+		var str = 'NAME REPLACE REPORT \r\n'
+		str += '==============================================================\r\n'
+		for( var i=0; i&lt;srcArr.length; i++ ){
+			str += srcArr[i] + ' --&gt; ' + repArr[i] + '\r\n';
+		}
+		LogMessage(str);
+	}
+	
+	return(nodeColl);
+}]]&gt;</scripttext>
+            </item>
+            <item type="scriptbutton" label="NAMER" userwidth="50" scriptengine="Python.AXScript.2" tooltip="">
+               <scripttext>&lt;![CDATA[#Author: Stephen Wagner
+#Requested: Matt Kapfhammer
+#Version: 0.5
+#Cinemanix Productions
+#Release: 000
+#Language: Python
+
+#For XSI 5.11 on Windows 2k/XP
+#=============================================================
+
+&quot;&quot;&quot;Abstract: the beginnings of an xsi cmx pipeline re/namer function,
+that will include a wide variety of ranaming and naming options.&quot;&quot;&quot;
+
+&quot;&quot;&quot;Script Use: Either select or find and select based on names, one
+or several objects, and then perform any number of operations on the
+names of those objects.&quot;&quot;&quot;
+
+&quot;&quot;&quot;Recent Changes: Added ability to strip all numerals or characters out
+of the name of an object. Fixed &quot;remove after position&quot; problem that would
+remove an extra letter. Remove after position cannot currently be combined
+with a series of characters to remove, say, everything after 4th underscore.
+This is the next planned change.&quot;&quot;&quot;
+
+#=============================================================
+
+from win32com.client import constants as c
+#from string import *
+
+true = 1
+false = 0
+oRoot = Application.ActiveSceneRoot
+xsi = Application
+log = xsi.LogMessage
+
+aAddParameter = (&quot;Prefix&quot;,&quot;Prefix&quot;,&quot;Suffix&quot;,&quot;Suffix&quot;,&quot;After Char&quot;,&quot;After Char&quot;)
+aRemoveParameter = (&quot;Remove String&quot;,&quot;Remove String&quot;,&quot;Remove All Before&quot;,&quot;Remove All Before&quot;,&quot;Remove All After&quot;,&quot;Remove All After&quot;)
+
+try:
+    xsi.DeleteObj(&quot;cmx_namer&quot;)
+except Exception:
+    log(&quot;doi&quot;)
+
+oScriptNull = oRoot.AddNull(&quot;cmx_namer&quot;)
+oPSet = oScriptNull.AddProperty(&quot;CustomProperty&quot;,false,&quot;Namer&quot;)
+
+#add parameters to the parameter set
+oPSet.AddParameter3(&quot;sFind&quot;,c.siString)
+oPSet.AddParameter3(&quot;sReplace&quot;,c.siString)
+oPSet.AddParameter3(&quot;sAdd&quot;,c.siString)
+oPSet.AddParameter3(&quot;sAddParameter&quot;,c.siString, &quot;Prefix&quot;)
+oPSet.AddParameter3(&quot;sAddPosition&quot;,c.siUInt2)
+oPSet.AddParameter3(&quot;sAddCharacter&quot;,c.siString)
+oPSet.AddParameter3(&quot;sRemove&quot;,c.siString)
+oPSet.AddParameter3(&quot;sRemoveParameter&quot;,c.siString, &quot;Remove String&quot;)
+oPSet.AddParameter3(&quot;sRemovePosition&quot;,c.siUInt2)
+oPSet.AddParameter3(&quot;sPreview&quot;,c.siString,&quot;Preview the name change here.\n&quot;)
+oPSet.AddParameter3(&quot;sCaseMethod&quot;,c.siString)
+oPSet.AddParameter3(&quot;sNote01&quot;,c.siString,&quot;If you leave Find String blank, Replace will Rename instead.&quot;)
+
+#create layout
+oLayout = oPSet.PPGLayout
+oLayout.Language = &quot;PythonScript&quot;
+#begin first tab========================================================
+oLayout.AddTab(&quot;Find and Replace&quot;)
+#find group-------------------------------------------------------------
+oLayout.AddGroup(&quot;Find String&quot;, true)
+oLayout.AddRow()
+oItem = oLayout.AddItem(&quot;sFind&quot;,&quot;Find:&quot;,c.siControlString)
+oLayout.EndRow()
+oLayout.AddRow()
+oItem = oLayout.AddButton(&quot;FindInSel&quot;, &quot;Find In Selection&quot;)
+oItem = oLayout.AddButton(&quot;FindAll&quot;, &quot;Find All&quot;)
+oLayout.EndRow()
+
+oLayout.EndGroup()
+#replace group-----------------------------------------------------------
+oLayout.AddGroup(&quot;Replace String&quot;, true)
+oLayout.AddRow()
+oItem = oLayout.AddItem(&quot;sPreview&quot;, &quot;Preview Change:&quot;, c.siControlStatic)
+oItem.SetAttribute(c.siUIWidthPercentage, 100)
+oLayout.EndRow()
+oLayout.AddRow()
+oItem = oLayout.AddButton(&quot;GenPreview_FR&quot;, &quot;Generate Preview&quot;)
+oLayout.EndRow()
+oLayout.AddSpacer()
+oLayout.AddRow()
+oItem = oLayout.AddItem(&quot;sReplace&quot;,&quot;Replace With:&quot;, c.siControlString)
+oLayout.EndRow()
+oLayout.AddRow()
+oItem = oLayout.AddButton(&quot;Replace&quot;, &quot;Replace in Selected&quot;)
+oLayout.EndRow()
+
+oLayout.EndGroup()
+#begin note 01-------------------------------------------------------------
+oLayout.AddGroup(&quot;&quot;,0)
+oLayout.AddRow()
+oItem = oLayout.AddItem(&quot;sNote01&quot;, &quot;Note: &quot;, c.siControlStatic)
+oLayout.EndRow()
+oLayout.EndGroup()
+
+#begin second tab===========================================================
+oLayout.AddTab(&quot;Add and Remove&quot;)
+#add group------------------------------------------------------------------
+oLayout.AddGroup(&quot;Add String&quot;)
+oLayout.AddRow()
+oItem = oLayout.AddItem(&quot;sAdd&quot;, &quot;Add String:&quot;, c.siControlString)
+oLayout.EndRow()
+oLayout.AddRow()
+oItem = oLayout.AddItem(&quot;sAddParameter&quot;, &quot;Add Method:&quot;, c.siControlRadio)
+oItem.UIItems = aAddParameter
+oLayout.EndRow()
+
+oLayout.AddRow()
+oItem = oLayout.AddItem(&quot;sAddCharacter&quot;,&quot;Character:&quot;, c.siControlString)
+oItem.SetAttribute(c.siUIWidthPercentage, 50)
+oItem = oLayout.AddItem(&quot;sAddPosition&quot;,&quot;Char# or Position:&quot;, c.siControlString)
+oItem.SetAttribute(c.siUIWidthPercentage, 50)
+oLayout.EndRow()
+
+oLayout.AddRow()
+oItem = oLayout.AddButton(&quot;AddToSelected&quot;, &quot;Add To Selected&quot;)
+oItem= oLayout.AddButton(&quot;AddToAll&quot;, &quot;Add To All&quot;)
+oLayout.EndRow()
+oLayout.AddSpacer()
+oLayout.AddRow()
+oItem = oLayout.AddItem(&quot;sPreview&quot;, &quot;Preview Change:&quot;, c.siControlStatic)
+oLayout.EndRow()
+oLayout.AddRow()
+oItem = oLayout.AddButton(&quot;GenPreview_ADD&quot;, &quot;Generate Preview&quot;)
+oLayout.EndRow()
+oLayout.EndGroup()
+
+#remove group---------------------------------------------------------------
+oLayout.AddGroup(&quot;Remove String&quot;)
+oLayout.AddRow()
+oItem = oLayout.AddItem(&quot;sRemove&quot;, &quot;Remove String:&quot;, c.siControlString)
+oLayout.EndRow()
+oLayout.AddRow()
+oItem = oLayout.AddItem(&quot;sRemoveParameter&quot;, &quot;Remove Method:&quot;, c.siControlRadio)
+oItem.UIItems = aRemoveParameter
+oLayout.EndRow()
+
+oLayout.AddRow()
+oItem = oLayout.AddItem(&quot;sRemovePosition&quot;,&quot;Position:&quot;,c.siControlString)
+oItem.SetAttribute(c.siUIWidthPercentage, 50)
+oItem = oLayout.AddSpacer()
+oLayout.EndRow()
+
+oLayout.AddRow()
+oItem = oLayout.AddButton(&quot;RemoveFromSelected&quot;, &quot;Remove From Selected&quot;)
+oItem = oLayout.AddButton(&quot;RemoveAll&quot;, &quot;Remove From All&quot;)
+oItem = oLayout.AddButton(&quot;RemoveNumb&quot;, &quot;Remove #0-9&quot;)
+oItem = oLayout.AddButton(&quot;RemoveChar&quot;, &quot;Remove aA-zZ&quot;)
+oLayout.EndRow()
+oLayout.AddSpacer()
+oLayout.AddRow()
+oItem = oLayout.AddItem(&quot;sPreview&quot;, &quot;Preview Change:&quot;, c.siControlStatic)
+oLayout.EndRow()
+oLayout.AddRow()
+oItem = oLayout.AddButton(&quot;GenPreview_REM&quot;, &quot;Generate Preview&quot;)
+oLayout.EndRow()
+
+oLayout.EndGroup()
+
+
+#begin third tab===========================================================
+oLayout.AddTab(&quot;Case Tools&quot;)
+
+
+#add logic to the property page
+oLayout.Logic = &quot;&quot;&quot;
+from win32com.client import constants as c
+from string import count, replace, split
+xsi = Application
+log = xsi.LogMessage
+oProperty = &quot;cmx_namer.Namer&quot;
+#import re
+
+#begin find and replace stuff===============================================
+
+def FindInSel_OnClicked():
+    oSelection = xsi.GetValue(&quot;Selectionlist&quot;)
+    vFindString = xsi.GetValue(oProperty+&quot;.sFind&quot;)
+    log(&quot;DEBUG: Finding objects whos name contains %s&quot; % vFindString)
+    for thing in oSelection:
+        if count(thing.Name, vFindString) &lt; 1:
+            xsi.RemoveFromSelection(thing)
+
+def FindAll_OnClicked():
+    vFindString = xsi.GetValue(oProperty+&quot;.sFind&quot;)
+    xsi.SelectAll()
+    xsi.RemoveFromSelection(&quot;cmx_namer&quot;)
+    oSelection = xsi.GetValue(&quot;SelectionList&quot;)
+    xsi.DeselectAll()
+    for thing in oSelection:
+        if count(thing.Name, vFindString) &gt;= 1:
+            xsi.AddToSelection(thing)
+         
+def Replace_OnClicked():
+    vFindString = xsi.GetValue(oProperty+&quot;.sFind&quot;)
+    vReplaceString = xsi.GetValue(oProperty+&quot;.sReplace&quot;)
+    oSelection = xsi.GetValue(&quot;SelectionList&quot;)
+    if (vFindString != &quot;&quot;):
+        for thing in oSelection:
+            vNewName = replace(thing.Name,vFindString,vReplaceString)
+            thing.Name = vNewName
+    else:
+        for thing in oSelection:
+            thing.Name = vReplaceString
+
+def GenPreview_FR_OnClicked():
+    i = 0
+    vFindString = xsi.GetValue(oProperty+&quot;.sFind&quot;)
+    vReplaceString = xsi.GetValue(oProperty+&quot;.sReplace&quot;)
+    oSelection = xsi.GetValue(&quot;SelectionList&quot;)
+    for thing in oSelection:
+        while (i == 0):
+            if (vFindString != &quot;&quot;):
+                vNewName = replace(thing.Name,vFindString,vReplaceString)
+            else:
+                vNewName = vReplaceString
+            xsi.SetValue(oProperty+&quot;.sPreview&quot;, &quot;Preview: &quot; + vNewName + &quot;\\n&quot;)
+            log(&quot;DEBUG: Creating preview...%s&quot; % vNewName)
+            i += 1
+           
+#end find and replace stuff===================================================
+#begin add and remove stuff===================================================
+
+def AddToSelected_OnClicked():
+    vAddString = xsi.GetValue(oProperty+&quot;.sAdd&quot;)
+    vAddParameter = xsi.GetValue(oProperty+&quot;.sAddParameter&quot;)
+    oSelection = xsi.GetValue(&quot;SelectionList&quot;)
+    if (vAddParameter == &quot;&quot;) or (vAddParameter == &quot;Prefix&quot;):
+        for thing in oSelection:
+            vNewName = vAddString + thing.Name
+            thing.Name = vNewName
+            
+    elif (vAddParameter == &quot;Suffix&quot;):
+        for thing in oSelection:
+            vNewName = thing.Name + vAddString
+            thing.Name = vNewName
+            
+    elif (vAddParameter == &quot;After Char&quot;):
+        vAddChar = xsi.GetValue(oProperty+&quot;.sAddCharacter&quot;)
+        vAddPos = xsi.GetValue(oProperty+&quot;.sAddPosition&quot;)
+        if (vAddChar == &quot;&quot;):
+            for thing in oSelection:
+                vCount = len(thing.Name)
+                vNewName = thing.Name[0:vAddPos] + vAddString + thing.Name[vAddPos:vCount]
+                thing.Name = vNewName
+        else:
+            for thing in oSelection:
+                i = 0
+                vCount = (thing.Name).count(vAddChar)
+                vAddCharLength = len(vAddChar)
+                vLength = len(thing.Name)
+                oldPrefLength = 0
+                vNewPref = &quot;&quot;
+                vNewSuff = thing.Name
+                while (i &lt; vAddPos) and (vAddPos &lt;= vCount):
+                    vPrefLength = (vNewSuff).find(vAddChar)
+                    #log(&quot;DEBUG: &quot; + str(vPrefLength))
+                    vNewPref = vNewPref + vNewSuff[0:vPrefLength+vAddCharLength]
+                    #log(&quot;DEBUG1: &quot; + vNewPref)
+                    vNewSuff = thing.Name[len(vNewPref):vLength]
+                    #log(&quot;DEBUG2: &quot; + vNewSuff)
+                    i += 1
+                thing.Name = vNewPref+vAddString+vNewSuff
+
+def AddToAll_OnClicked():            
+    vAddString = xsi.GetValue(oProperty+&quot;.sAdd&quot;)
+    vAddParameter = xsi.GetValue(oProperty+&quot;.sAddParameter&quot;)
+    xsi.SelectAll()
+    xsi.RemoveFromSelection(&quot;cmx_namer&quot;)
+    oSelection = xsi.GetValue(&quot;SelectionList&quot;)
+    xsi.DeselectAll()
+    if (vAddParameter == &quot;&quot;) or (vAddParameter == &quot;Prefix&quot;):
+        for thing in oSelection:
+            vNewName = vAddString + thing.Name
+            thing.Name = vNewName
+            
+    elif (vAddParameter == &quot;Suffix&quot;):
+        for thing in oSelection:
+            vNewName = thing.Name + vAddString
+            thing.Name = vNewName
+            
+    elif (vAddParameter == &quot;After Char&quot;):
+        vAddChar = xsi.GetValue(oProperty+&quot;.sAddCharacter&quot;)
+        vAddPos = xsi.GetValue(oProperty+&quot;.sAddPosition&quot;)
+        if (vAddChar == &quot;&quot;):
+            for thing in oSelection:
+                vCount = len(thing.Name)
+                vNewName = thing.Name[0:vAddPos] + vAddString + thing.Name[vAddPos:vCount]
+                thing.Name = vNewName
+        else:
+            for thing in oSelection:
+                i = 0
+                vCount = (thing.Name).count(vAddChar)
+                vAddCharLength = len(vAddChar)
+                vLength = len(thing.Name)
+                oldPrefLength = 0
+                vNewPref = &quot;&quot;
+                vNewSuff = thing.Name
+                while (i &lt; vAddPos) and (vAddPos &lt;= vCount):
+                    vPrefLength = (vNewSuff).find(vAddChar)
+                    #log(&quot;DEBUG: &quot; + str(vPrefLength))
+                    vNewPref = vNewPref + vNewSuff[0:vPrefLength+vAddCharLength]
+                    #log(&quot;DEBUG1: &quot; + vNewPref)
+                    vNewSuff = thing.Name[len(vNewPref):vLength]
+                    #log(&quot;DEBUG2: &quot; + vNewSuff)
+                    i += 1
+                thing.Name = vNewPref+vAddString+vNewSuff
+
+                
+def RemoveFromSelected_OnClicked():
+    vRemoveString = xsi.GetValue(oProperty+&quot;.sRemove&quot;)
+    vRemoveParameter = xsi.GetValue(oProperty+&quot;.sRemoveParameter&quot;)
+    vRemovePosition = xsi.GetValue(oProperty+&quot;.sRemovePosition&quot;)
+    oSelection = xsi.GetValue(&quot;SelectionList&quot;)
+    if (vRemoveParameter == &quot;&quot;) or (vRemoveParameter == &quot;Remove String&quot;):
+        for thing in oSelection:
+            vNewNameList = (thing.Name).split(vRemoveString,2)
+            #log(&quot;DEBUG1: &quot; + str(vNewNameList))
+            vNewName = str(vNewNameList[0]) + str(vNewNameList[1])
+            #log(&quot;DEBUG2: &quot; + str(vNewName))
+            thing.Name = vNewName
+    elif (vRemoveParameter == &quot;Remove All Before&quot;):
+        if (vRemovePosition == 0):
+            for thing in oSelection:
+                vNewNameList = (thing.Name).split(vRemoveString,2)
+                vNewName = (vRemoveString + str(vNewNameList[1]))
+                thing.Name = vNewName
+        else:
+            for thing in oSelection:
+                vNameLength = len(thing.Name)
+                vNewName = (thing.Name)[vRemovePosition-1:vNameLength]
+                thing.Name = vNewName
+    elif (vRemoveParameter == &quot;Remove All After&quot;):
+        if (vRemovePosition == 0):
+            for thing in oSelection:
+                vNewNameList = (thing.Name).split(vRemoveString,2)
+                vNewName = (str(vNewNameList[0])+vRemoveString)
+                thing.Name = vNewName
+        else:
+            for thing in oSelection:
+                vNewName = (thing.Name)[0:vRemovePosition]
+                thing.Name = vNewName
+
+def RemoveAll_OnClicked():
+	vRemoveString = xsi.GetValue(oProperty+&quot;.sRemove&quot;)
+	xsi.SelectAll()
+	xsi.RemoveFromSelection(&quot;cmx_namer&quot;)
+	oSelection = xsi.GetValue(&quot;SelectionList&quot;)
+	xsi.DeselectAll()
+	for thing in oSelection:
+		vCount = count(thing.Name, vRemoveString)
+		if (vCount != 0):
+			vNewNameList = (thing.Name).split(vRemoveString,2)
+			#log(&quot;DEBUG1: &quot; + str(vNewNameList))
+			vNewName = str(vNewNameList[0]) + str(vNewNameList[1])
+			#log(&quot;DEBUG2: &quot; + str(vNewName))
+			thing.Name = vNewName
+
+def GenPreview_ADD_OnClicked():
+    vAddString = xsi.GetValue(oProperty+&quot;.sAdd&quot;)
+    vAddParameter = xsi.GetValue(oProperty+&quot;.sAddParameter&quot;)
+    oSelection = xsi.GetValue(&quot;SelectionList&quot;)
+    xsi.DeselectAll()
+    if (vAddParameter == &quot;&quot;) or (vAddParameter == &quot;Prefix&quot;):
+        for thing in oSelection:
+            vNewName = vAddString + thing.Name
+            xsi.SetValue(oProperty+&quot;.sPreview&quot;, &quot;Preview: &quot; + vNewName + &quot;\\n&quot;)
+            
+    elif (vAddParameter == &quot;Suffix&quot;):
+        for thing in oSelection:
+            vNewName = thing.Name + vAddString
+            xsi.SetValue(oProperty+&quot;.sPreview&quot;, &quot;Preview: &quot; + vNewName + &quot;\\n&quot;)
+            
+    elif (vAddParameter == &quot;After Char&quot;):
+        vAddChar = xsi.GetValue(oProperty+&quot;.sAddCharacter&quot;)
+        vAddPos = xsi.GetValue(oProperty+&quot;.sAddPosition&quot;)
+        if (vAddChar == &quot;&quot;):
+            for thing in oSelection:
+                vCount = len(thing.Name)
+                vNewName = thing.Name[0:vAddPos] + vAddString + thing.Name[vAddPos:vCount]
+                xsi.SetValue(oProperty+&quot;.sPreview&quot;, &quot;Preview: &quot; + vNewName + &quot;\\n&quot;)
+        else:
+            for thing in oSelection:
+                i = 0
+                vCount = (thing.Name).count(vAddChar)
+                vAddCharLength = len(vAddChar)
+                vLength = len(thing.Name)
+                oldPrefLength = 0
+                vNewPref = &quot;&quot;
+                vNewSuff = thing.Name
+                while (i &lt; vAddPos) and (vAddPos &lt;= vCount):
+                    vPrefLength = (vNewSuff).find(vAddChar)
+                    #log(&quot;DEBUG: &quot; + str(vPrefLength))
+                    vNewPref = vNewPref + vNewSuff[0:vPrefLength+vAddCharLength]
+                    #log(&quot;DEBUG1: &quot; + vNewPref)
+                    vNewSuff = thing.Name[len(vNewPref):vLength]
+                    #log(&quot;DEBUG2: &quot; + vNewSuff)
+                    i += 1
+                xsi.SetValue(oProperty+&quot;.sPreview&quot;, &quot;Preview: &quot; + vNewPref+vAddString+vNewSuff)
+
+def GenPreview_REM_OnClicked():
+	vRemoveString = xsi.GetValue(oProperty+&quot;.sRemove&quot;)
+	oSelection = xsi.GetValue(&quot;SelectionList&quot;)
+	for thing in oSelection:
+		vNewNameList = (thing.Name).split(vRemoveString,2)
+		#log(&quot;DEBUG1: &quot; + str(vNewNameList))
+		vNewName = str(vNewNameList[0]) + str(vNewNameList[1])
+		#log(&quot;DEBUG2: &quot; + str(vNewName))
+		xsi.SetValue(oProperty+&quot;.sPreview&quot;, vNewName)
+
+def RemoveNumb_OnClicked():
+    import re
+    p = re.compile('[0-9]')
+    oSelection = xsi.GetValue(&quot;SelectionList&quot;)
+    for thing in oSelection:
+        vNewName = p.sub(&quot;&quot;,thing.Name)
+        thing.Name = vNewName
+
+def RemoveChar_OnClicked():
+    import re
+    p = re.compile('[a-z]', re.IGNORECASE)
+    oSelection = xsi.GetValue(&quot;SelectionList&quot;)
+    for thing in oSelection:
+        vNewName = p.sub(&quot;&quot;,thing.Name)
+        thing.Name = vNewName
+
+&quot;&quot;&quot;
+#bring up the custom ppg
+xsi.InspectObj(oPSet)]]&gt;</scripttext>
+            </item>
+            <item type="scriptbutton" label="MB_Names" scriptengine="Python.AXScript.2" tooltip="">
+               <scripttext>&lt;![CDATA[#Author: Stephen Wagner
+#Requested: Matt Kapfhammer
+#Version: 1.1
+#Cinemanix Productions
+#Release: 20071917
+#Language: Python
+
+#For XSI 5.11 on Windows 2k/XP
+#=============================================================
+
+&quot;&quot;&quot;Abstract: Prompts the user to rename the selected objects with
+a prefix, name, and suffix based on the default accepted values
+from motion builder. &quot;&quot;&quot;
+
+&quot;&quot;&quot;Script Use: Select an object or objects, run the script, and 
+select the desired options for prefix, name, and suffix. Then, hit
+the button and watch in horrer as your selected objects have their 
+identities stripped from them forever and replaced by a soulless
+mockery of the life they knew before. &quot;&quot;&quot;
+
+#Version History: Script has been updated to PythonScript
+#=============================================================
+
+from win32com.client import constants as c
+
+aPrefixes = [&quot;None&quot;,&quot;&quot;,&quot;Left&quot;,&quot;Left&quot;,&quot;Right&quot;,&quot;Right&quot;]
+			
+			
+aNames = [&quot;FingerBase&quot;,&quot;FingerBase&quot;,
+	&quot;InHandThumb&quot;,&quot;InHandThumb&quot;,
+	&quot;InHandIndex&quot;,&quot;InHandIndex&quot;,
+	&quot;InHandMiddle&quot;,&quot;InHandMiddle&quot;,
+	&quot;InHandRing&quot;,&quot;InHandRing&quot;,
+	&quot;InHandPinky&quot;,&quot;InHandPinky&quot;,
+	&quot;InHandExtraFinger&quot;,&quot;InHandExtraFinger&quot;,
+	&quot;HandThumb&quot;,&quot;HandThumb&quot;,
+	&quot;HandIndex&quot;,&quot;HandIndex&quot;,
+	&quot;HandMiddle&quot;,&quot;HandMiddle&quot;,
+	&quot;HandRing&quot;,&quot;HandRing&quot;,
+	&quot;HandPinky&quot;,&quot;HandPinky&quot;,
+	&quot;HandExtraFinger&quot;,&quot;HandExtraFinger&quot;,
+	&quot;Shoulder&quot;,&quot;Shoulder&quot;,
+	&quot;Arm&quot;,&quot;Arm&quot;,
+	&quot;ArmRoll&quot;,&quot;ArmRoll&quot;,
+	&quot;ForeArm&quot;,&quot;ForeArm&quot;,
+	&quot;ForeArmRoll&quot;,&quot;ForeArmRoll&quot;, 
+	&quot;Hand&quot;,&quot;Hand&quot;,
+	&quot;UpLeg&quot;,&quot;UpLeg&quot;,
+	&quot;UpLegRoll&quot;,&quot;UpLegRoll&quot;,
+	&quot;Leg&quot;,&quot;Leg&quot;,
+	&quot;LegRoll&quot;,&quot;LegRoll&quot;,
+	&quot;Foot&quot;,&quot;Foot&quot;,
+	&quot;ToeBase&quot;,&quot;ToeBase&quot;,
+	&quot;InFootThumb&quot;,&quot;InFootThumb&quot;,
+	&quot;InFootIndex&quot;,&quot;InFootIndex&quot;,
+	&quot;InFootMiddle&quot;,&quot;InFootMiddle&quot;,
+	&quot;InFootRing&quot;,&quot;InFootRing&quot;,
+	&quot;InFootPinky&quot;,&quot;InFootPinky&quot;,
+	&quot;InFootExtraFinger&quot;,&quot;InFootExtraFinger&quot;,
+	&quot;FootThumb&quot;,&quot;FootThumb&quot;,
+	&quot;FootIndex&quot;,&quot;FootIndex&quot;,
+	&quot;FootMiddle&quot;,&quot;FootMiddle&quot;,
+	&quot;FootRing&quot;,&quot;FootRing&quot;,
+	&quot;FootPinky&quot;,&quot;FootPinky&quot;,
+	&quot;FootExtraFinger&quot;,&quot;FootExtraFinger&quot;,
+	&quot;Props&quot;,&quot;Props&quot;,
+	&quot;Reference&quot;,&quot;Reference&quot;,
+	&quot;Hips&quot;,&quot;Hips&quot;,
+	&quot;Spine&quot;,&quot;Spine&quot;,
+	&quot;Neck&quot;,&quot;Neck&quot;,
+	&quot;Head&quot;,&quot;Head&quot;]
+	
+	#AUGHHGHGG
+
+false=0
+true=1
+oRoot = Application.ActiveSceneRoot
+#on error resume next
+try:
+	Application.DeleteObj(&quot;MB_Renamer_Script&quot;)
+except Exception:
+	print &quot;doi&quot;
+	
+oControlNull = oRoot.AddNull(&quot;MB Renamer Script&quot;)
+oPSet = oControlNull.AddProperty(&quot;CustomProperty&quot;,false,&quot;Prompt&quot;)
+
+
+oPSet.AddParameter3(&quot;Prefix&quot;, c.siString)
+oPSet.AddParameter3(&quot;Nameo&quot;, c.siString)
+oPSet.AddParameter3(&quot;Suffix&quot;,c.siString)
+
+oPPGLayout = oPSet.PPGLayout
+
+
+oPPGLayout.AddGroup(&quot;Rename&quot;, true)
+oPPGLayout.AddRow()
+
+oPPGLayout.AddGroup(&quot;&quot;,false,25)
+oItem = oPPGLayout.AddEnumControl(&quot;Prefix&quot;, aPrefixes, &quot;Prefix&quot; ,c.siControlCombo)
+oPPGLayout.EndGroup()
+
+oPPGLayout.AddGroup(&quot;&quot;,false,50)
+oItem = oPPGLayout.AddEnumControl(&quot;Nameo&quot;, aNames, &quot;Name&quot;, c.siControlCombo)
+oPPGLayout.EndGroup()
+
+oPPGLayout.AddGroup(&quot;&quot;,false,25)
+oItem = oPPGLayout.AddItem(&quot;Suffix&quot;, &quot;Suffix&quot;, c.siControlNumber)
+oItem.SetAttribute(&quot;noslider&quot;, true)
+oPPGLayout.EndGroup()
+oPPGLayout.Endrow()
+oItem = oPPGLayout.AddButton(&quot;Rename&quot;)
+oPPGLayout.EndGroup()
+
+oPPGLayout.Language = &quot;PythonScript&quot;
+oPPGLayout.Logic = &quot;&quot;&quot;def Rename_OnClicked():
+	oSelection=Application.Selection
+	p = Application.GetValue(&quot;MB_Renamer_Script.Prompt.Prefix&quot;)
+	n = Application.GetValue(&quot;MB_Renamer_Script.Prompt.Nameo&quot;)
+	s = Application.GetValue(&quot;MB_Renamer_Script.Prompt.Suffix&quot;)
+	for thing in oSelection:
+		thing.Name = p+n+s&quot;&quot;&quot;
+
+
+Application.InspectObj(oPSet)]]&gt;</scripttext>
+            </item>
+            <item type="scriptbutton" label="SA_Rename" scriptengine="Python.AXScript.2" tooltip="">
+               <scripttext>&lt;![CDATA[import os
+import win32com.client
+from win32com.client import constants
+
+null = None
+false = 0
+true = 1
+
+def XSILoadPlugin( in_reg ):
+	in_reg.Author = &quot;Stefan Andersson&quot;
+	in_reg.Name = &quot;Rename_ObjectsPlugin&quot;
+	in_reg.Email = &quot;sanders3d@gmail.com&quot;
+	in_reg.URL = &quot;&quot;
+	in_reg.Major = 1
+	in_reg.Minor = 0
+	
+	in_reg.RegisterProperty(&quot;Rename_Objects&quot;)
+
+	#RegistrationInsertionPoint - do not remove this line
+
+	return true
+
+def XSIUnloadPlugin( in_reg ):
+	strPluginName = in_reg.Name
+	Application.LogMessage(&quot;Sto.pp Renamer has been unloaded&quot;)
+	return true
+
+def Rename_Objects_Define( ctxt ):
+	oCustomProperty = ctxt.Source
+	oCustomProperty.AddParameter2(&quot;Search&quot;,constants.siString,&quot;&quot;,null,null,null,null,0,constants.siPersistable)
+	oCustomProperty.AddParameter2(&quot;Object_Type&quot;, constants.siString, &quot;All&quot;,null,null,null,null, constants.siClassifMetaData, 0, &quot;Object Types&quot;)
+	oCustomProperty.AddParameter2(&quot;Suffix&quot;,constants.siString,&quot;&quot;,null,null,null,null,0,constants.siPersistable)
+	oCustomProperty.AddParameter2(&quot;Rename&quot;,constants.siString,&quot;&quot;,null,null,null,null,0,constants.siPersistable)
+	oCustomProperty.AddParameter2(&quot;Start_Number&quot;,constants.siString,&quot;1&quot;,null,null,null,null,0,constants.siPersistable)
+	oCustomProperty.AddParameter2(&quot;Padding&quot;,constants.siString,&quot;0&quot;,null,null,null,null,0,constants.siPersistable)
+	return true
+
+def Rename_Objects_DefineLayout( ctxt ):
+	oLayout = ctxt.Source
+	oLayout.Clear()
+	oLayout.AddTab(&quot;Rename Utility&quot;);\
+		oLayout.AddGroup(&quot;Search and Select&quot;);\
+			oLayout.AddItem(&quot;Search&quot;);\
+			oLayout.AddEnumControl(&quot;Object_Type&quot;, [&quot;All&quot;, &quot;All&quot;, &quot;Cameras&quot;, &quot;Cameras&quot;, &quot;Lights&quot;, &quot;Lights&quot;, &quot;Curves&quot;, &quot;Curves&quot;, &quot;Polymesh&quot;, &quot;Polymesh&quot;, &quot;Nurbmesh&quot;, &quot;Nurbmesh&quot;, &quot;Null&quot;, &quot;Null&quot;]);\
+			oLayout.AddButton(&quot;Search_and_Select&quot;, &quot;Search and select&quot;);\
+		oLayout.EndGroup();\
+		oLayout.AddGroup(&quot;Change Suffix&quot;);\
+			oLayout.AddItem(&quot;Suffix&quot;);\
+			oLayout.AddButton(&quot;Add_Suffix&quot;, &quot;Add Suffix&quot;);\
+		oLayout.EndGroup();\
+		oLayout.AddGroup(&quot;Rename and Number&quot;);\
+			oLayout.AddItem(&quot;Rename&quot;);\
+			oLayout.AddItem(&quot;Start_Number&quot;);\
+			oLayout.AddItem(&quot;Padding&quot;);\
+			oLayout.AddButton(&quot;Rename_and_Number&quot;, &quot;Rename And Number&quot;);\
+		oLayout.EndGroup();\
+		oLayout.AddGroup(&quot;Exit Application&quot;);\
+		oLayout.AddButton(&quot;End_App&quot;, &quot;Exit Application&quot;);\
+		oLayout.EndGroup();\
+	return true
+
+def Rename_Objects_OnInit( ):
+	Application.LogMessage(&quot;Sto.pp Renamer has been loaded&quot;)
+	
+#----------------------------------------------------------------------------------
+# Search and select
+#----------------------------------------------------------------------------------
+def Rename_Objects_Search_OnChanged( ):
+	oParam = PPG.Search
+	paramVal = oParam.Value
+
+def Rename_Objects_Object_Type( ):
+	oParam = PPG.Object_Type
+	paramVal = oParam.Value
+
+def Rename_Objects_Search_and_Select_OnClicked( ):
+	xsi = Application
+	if PPG.Object_Type.Value == (&quot;Lights&quot;):	
+		thelist = xsi.activesceneroot.findchildren( &quot;*&quot; + PPG.Search.Value + &quot;*&quot;, '', constants.siLightPrimitiveFamily, True )
+		if thelist.count &lt; 1:
+			xsi.LogMessage(&quot;No Lights exists in scene&quot;)
+		else:
+			xsi.SelectObj(thelist)
+	
+	elif PPG.Object_Type.Value == (&quot;Cameras&quot;):	
+		thelist = xsi.activesceneroot.findchildren( &quot;*&quot; + PPG.Search.Value + &quot;*&quot;, '', constants.siCameraFamily, True )
+		if thelist.count &lt; 1:
+			xsi.LogMessage(&quot;No Cameras exists in scene&quot;)
+		else:
+			xsi.SelectObj(thelist)
+		
+	elif PPG.Object_Type.Value == (&quot;Null&quot;):	
+		thelist = xsi.activesceneroot.findchildren( &quot;*&quot; + PPG.Search.Value + &quot;*&quot;, '', constants.siNullPrimitiveFamily, True )
+		if thelist.count &lt; 1:
+			xsi.LogMessage(&quot;No Null objects exists in scene&quot;)
+		else:
+			xsi.SelectObj(thelist)
+		
+	elif PPG.Object_Type.Value == (&quot;Curves&quot;):	
+		thelist = xsi.activesceneroot.findchildren( &quot;*&quot; + PPG.Search.Value + &quot;*&quot;, '', constants.siNurbsCurveListFamily, True )
+		if thelist.count &lt; 1:
+			xsi.LogMessage(&quot;No Curves exists in scene&quot;)
+		else:
+			xsi.SelectObj(thelist)
+
+	elif PPG.Object_Type.Value == (&quot;Polymesh&quot;):	
+		thelist = xsi.activesceneroot.findchildren( &quot;*&quot; + PPG.Search.Value + &quot;*&quot;, '', constants.siMeshFamily, True )
+		if thelist.count &lt; 1:
+			xsi.LogMessage(&quot;No Polymesh exists in scene&quot;)
+		else:
+			xsi.SelectObj(thelist)
+
+	elif PPG.Object_Type.Value == (&quot;Nurbmesh&quot;):	
+		thelist = xsi.activesceneroot.findchildren( &quot;*&quot; + PPG.Search.Value + &quot;*&quot;, '', constants.siNurbsSurfaceMeshFamily, True )
+		if thelist.count &lt; 1:
+			xsi.LogMessage(&quot;No Nurb meshes Exists in scene&quot;)
+		else:
+			xsi.SelectObj(thelist)
+	else:
+		thelist = xsi.activesceneroot.findchildren( &quot;*&quot; + PPG.Search.Value + &quot;*&quot;, '', constants.si3DObjectFamily, True )
+		xsi.SelectObj(thelist)
+	
+	
+#----------------------------------------------------------------------------------
+# add suffix
+#----------------------------------------------------------------------------------
+
+def Rename_Objects_Suffix_OnChanged( ):
+	oParam = PPG.Suffix
+	paramVal = oParam.Value
+
+def Rename_Objects_Add_Suffix_OnClicked( ):
+	xsi = Application
+	countObj = xsi.Selection.Count
+	Lastname = PPG.Suffix.Value
+	for i in range(countObj):
+		newname = xsi.Selection(i).Name + Lastname
+		xsi.Selection(i).Name = newname
+	
+
+#----------------------------------------------------------------------------------
+# rename and change padding
+#----------------------------------------------------------------------------------
+
+def Rename_Objects_Rename_OnChanged( ):
+	oParam = PPG.Rename
+	paramVal = oParam.Value
+
+def Rename_Objects_Start_Number_OnChanged( ):
+	oParam = PPG.Start_Number
+	paramVal = oParam.Value
+
+def Rename_Objects_Padding_OnChanged( ):
+	oParam = PPG.Padding
+	paramVal = oParam.Value
+
+def Rename_Objects_Rename_and_Number_OnClicked( ):
+	xsi = Application
+	countObj = xsi.Selection.Count
+	oObjs = (Application.Selection)
+	Padding = PPG.Padding.Value
+	Rename = PPG.Rename.Value
+	Start_Number = PPG.Start_Number.Value
+	extPad = '%0' + Padding + 'i'
+	for i in range(countObj):
+		xsi.Selection(i).Name = Rename + extPad % (i + int(Start_Number))
+
+
+def Rename_Objects_Menu_Init( ctxt ):
+	oMenu = ctxt.Source
+	oMenu.AddCallbackItem(&quot;Rename_Objects&quot;,&quot;OnRename_ObjectsMenuClicked&quot;)
+	return true
+
+def Rename_Objects_End_App_OnClicked( ):
+	PPG.Close()
+	Application.DeleteObj(&quot;Rename_Objects&quot;)
+		
+
+#----------------------------------------------------------------------------------
+# Execute script after pressing Ok
+#----------------------------------------------------------------------------------
+
+
+
+]]&gt;</scripttext>
+            </item>
+            <item type="separator" mode="group_header" group_name="CREATING"></item>
+            <item type="popup_menu" name="Nulls">
+               <command name="Null Child"></command>
+               <command name="Null Parent"></command>
+               <command name="Null Sibling"></command>
+               <command name="Null Swap"></command>
+            </item>
+            <item type="scriptbutton" label="EnvNulls" scriptengine="VBScript" tooltip="">
+               <scripttext>&lt;![CDATA[''''Author: Stephen Wagner
+''''Requested: Matt Kapfhammer
+''''Version: 1.0
+''''Cinemanix Productions
+''''Release: 20071914
+''''Language: VBScript
+
+''''For XSI 5.11 on Windows 2k/XP
+'=============================================================
+
+'Abstract: Script uses selected bones to create nulls that are
+'matched to the transforms of those bones and appear as boxes.
+
+'Script Use: Select a rig or hierarchy of bones (non-bones will
+'not be affected) and run the script. The new nulls will be 
+'children of a &quot;ENV_Root&quot; null that is a child of the scene root.
+'The nulls will have no primary icon, but will have a shadow icon
+'that looks like a box.
+
+'NOTE: If you have an &quot;ENV_Root&quot; in the scene already, make sure
+'you remove or rename it, as it will interfere with the script.
+
+'Version History: First release.
+
+'=============================================================
+
+dim oRigItems, oBone, oNull, oNewRootNull
+
+set oRigItems = Application.Selection
+oCount = oRigItems.count
+logmessage &quot;Number of items selected is &quot; &amp; oCount
+
+set oNewRootNull = ActiveSceneRoot.AddNull(&quot;ENV_Root&quot;)
+
+
+for each oItem in oRigItems
+	oCloneNullFromBone( oItem )
+next
+
+DeselectAll
+
+
+function oCloneNullFromBone( oInputBone )
+	if oInputBone.Type = &quot;bone&quot; then
+		oNull = oNewRootNull.AddNull(&quot;ENV_&quot;&amp;oInputBone.Name)
+		MatchTransform oNull, oInputBone, siSRT
+		logmessage &quot;Working from &quot; &amp; oInputBone
+		logmessage &quot;Created null &quot; &amp; oNull
+		SetValue oNull &amp; &quot;.null.primary_icon&quot;,0
+		SetValue oNull &amp; &quot;.null.shadow_icon&quot;,4
+	else
+	end if
+end function
+
+'PseudoCode
+'===============================================================
+
+'create lists
+
+'set list oRigItems to the current selection
+'count the number of things in oRigItems
+'log a message of the number of things
+'
+'create a new null under the root called &quot;ENV_Root&quot;
+'
+'
+'for each thing in oRigItems
+'	run the function oCloneNullFromBone
+'next
+'
+'Deselect all objects
+'
+'
+'Define function oCloneNullFromBone( first argument )
+'	if the object sent to the function is a bone then
+'		add a new null underneath &quot;ENV_Root&quot; and set oNull to that null
+'		match the transforms of oNull to the bone that was sent to the function
+'		log a message about the bone
+'		log a message about the new null
+'		set the null's primary display to &quot;none&quot;
+'		set the null's shadow display to &quot;box&quot;
+'	else
+'	end if
+'end the function]]&gt;</scripttext>
+            </item>
+            <item type="scriptbutton" label="ForENV_sel" scriptengine="VBScript" tooltip="">
+               <scripttext>&lt;![CDATA[''''Author: Chrystia Siolkowsky
+''''Version: 1.0
+''''Cinemanix Productions
+''''Release Date: 070415
+
+''''Release Notes: Creates and enveloping group for bones from a selection.
+
+for i = 1 to 3
+	for each item in Selection
+		if typename(item) = &quot;ChainRoot&quot; Then
+			ToggleSelection item, , True
+		elseif typename(item) = &quot;ChainEffector&quot; Then
+			ToggleSelection item, , True
+		end if
+	next
+next
+
+CreateGroup
+SetValue &quot;Group.Name&quot;, &quot;For_Enveloping&quot;]]&gt;</scripttext>
+            </item>
+            <item type="separator" mode="group_header" group_name="EDITING"></item>
+            <item type="script" label="SplitChain" name="swSplitChain1" cmdid="{1E48C831-07C2-4FF6-9423-B0D7436217A3}"></item>
+            <item type="script" name="SwapCurve" cmdid="{333CB6E2-4597-4E4C-8B33-8AEABCFADACC}"></item>
+            <item type="script" userwidth="90" name="SwapPolyMesh" cmdid="{E64C088F-DFC1-49E3-84B6-08C2351AD83D}"></item>
+            <item type="scriptbutton" label="ResetShpWts" scriptengine="Python.AXScript.2" tooltip="">
+               <scripttext>&lt;![CDATA[#Author: Stephen Wagner
+#Requested: Matt Kapfhammer
+#Version: 1.1
+#Cinemanix Productions
+#Release: 20070823
+#Language: Python
+
+#For XSI 5.11 on Windows 2k/XP
+#=================================================================================
+
+#Abstract: A script for taking any keyframable shapes (designated as such)
+#and removing all of their keys and resetting them to 0, useful for a new
+#scene where the same shapes will be used.
+
+#Script Use: All you need to do is run the script on its own. 
+
+#Matt wants the script to differentiate between keyed and driven shapes automatically.
+#This is currently unworkable and defeats the purpose of naming conventions, but it 
+#would be useful to look into how this can be done.
+
+#Version History: Script transcribed to Python!
+#===================================================================================
+
+xsi = Application
+
+xsi.DeselectAll()
+
+xsi.SelectObj(&quot;*KEYED*&quot;)
+
+for item in xsi.Selection:
+        xsi.RemoveAllAnimation()
+        xsi.LogMessage(item)
+        try:
+            xsi.SetValue(item &amp; &quot;.actionclip.weight&quot;, 0.0)
+        except Exception:
+            xsi.LogMessage(&quot;Oops.&quot;)
+
+xsi.DeselectAll()
+
+
+
+#PsuedoCode
+#=================================
+
+#deselect all objects
+
+#Select objects with the word &quot;KEYED&quot; in their names
+
+#for each of the selected objects
+#   remove all animation keys
+#	log the name of the object
+#	skip objects that do not have a weight parameter
+#	set the weight parameter for each object to 0.0
+#end for loop
+#deselect all objects again]]&gt;</scripttext>
+            </item>
+            <item type="command" name="Gator"></item>
+            <item type="separator" mode="group_header" group_name="CLEANING"></item>
+            <item type="scriptbutton" label="PCClean" scriptengine="Python.AXScript.2" tooltip="">
+               <scripttext>&lt;![CDATA[#Author: Stephen Wagner
+#Requested: Matt Kapfhammer
+#Major Version: 00
+#Minor Version: 03
+#Cinemanix Productions
+#Release: -1
+#Language: Python
+
+#For XSI 5.11 on Windows 2k/XP
+#AVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAV
+
+&quot;&quot;&quot;Abstract: Script to automate much of the process that occurs after
+setting up a model with the PointCache script.&quot;&quot;&quot;
+
+# Freeze modeling stack.
+# Delete all operators except KP_PointCache Scripted Op
+# Delete the &quot;ShapeWeights&quot; custom parameter set.
+# Delete env cls, shp cls, sym cls's with these strings in them: &quot;SHP_&quot;, &quot;EnvelopWeightCls&quot;, &quot;SymmetryMapCls&quot;.
+
+&quot;&quot;&quot;Script Use: Script runs on selected objects, performing the
+necessary operations on them.&quot;&quot;&quot;
+
+
+#AVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAVAV
+true = 1
+false = 0
+xsi = Application
+log = xsi.LogMessage
+oRoot = xsi.ActiveSceneRoot
+
+oSelection = xsi.GetValue(&quot;SelectionList&quot;)
+xsi.DeselectAll()
+for thing in oSelection:
+    xsi.FreezeObj()
+    xsi.DeleteObj(str(thing)+&quot;.ShapeWeights&quot;)
+    xsi.SelectObj(str(thing)+&quot;.polymsh.*op&quot;)
+    oOpSelection = xsi.GetValue(&quot;SelectionList&quot;)
+    for op in oOpSelection:
+        xsi.FreezeObj()
+    try:
+        xsi.AddToSelection(str(thing)+&quot;.polymsh.cls.*SHP_*&quot;)
+    except Exception:
+        log(&quot;doi. no SHP_ cluster&quot;)
+    try:
+        xsi.AddToSelection(str(thing)+&quot;.polymsh.cls.*EnvelopWeightCls*&quot;)
+    except Exception:
+        log(&quot;doi. no EnvelopWeightCls&quot;)
+    try:
+        xsi.AddToSelection(str(thing)+&quot;.polymsh.cls.*SymmetryMapCls*&quot;)
+    except Exception:
+        log(&quot;doi. no SymmetryMapCls&quot;)
+    oClsSelection = xsi.GetValue(&quot;SelectionList&quot;)
+    for cls in oClsSelection:
+        xsi.DeleteObj()
+    
+
+]]&gt;</scripttext>
+            </item>
+            <item type="scriptbutton" label="RemoveCLS" scriptengine="VBScript" tooltip="">
+               <scripttext>&lt;![CDATA[''''Author: Stephen Wagner
+''''Version 1.0
+''''Cinemanix Productions
+''''Release: 20070504
+
+''''For XSI 5.11
+''''Notes: Deletes all clusters in a scene
+''''this is the greatest and best script in the world
+
+''''==================================================
+
+dim oGroup, oCount
+
+
+DeselectAll
+n = 0
+m = 0
+on error resume next
+SelectObj &quot;*.cls.*&quot;
+set oGroup = Selection
+
+
+Function ClusterBomb( cluster_group )
+n = cluster_group.Count
+logmessage &quot;There are &quot; &amp; cluster_group.Count &amp; &quot; clusters selected.&quot;
+for each thing in cluster_group
+	DeleteObj thing
+	n = n - 1
+	m = m + 1
+next
+logmessage &quot; &quot; &amp; m &amp; &quot; clusters deleted from the scene.&quot;
+
+if n &gt; 0 then
+	logmessage &quot;Script completed. There are still &quot; &amp; n &amp; &quot; clusters remaining in the scene. Script is running again.&quot;
+	
+	DeselectAll
+	n = 0
+	m = 0
+	'''on error resume next
+	SelectObj &quot;*.cls.*&quot;
+	set oGroup = Selection
+	
+	Call ClusterBomb( oGroup )
+
+else
+	msgbox &quot;Script completed. There are no more clusters in the scene.&quot;
+	end if
+End Function
+
+Call ClusterBomb( oGroup )
+]]&gt;</scripttext>
+            </item>
+            <item type="scriptbutton" label="FindExtraUVs" scriptengine="VBScript" tooltip="">
+               <scripttext>&lt;![CDATA[''''Author: Stephen Wagner
+''''Version: 1.0
+''''Cinemanix Productions
+''''Release: 20070427
+
+''''For 5.11
+'''''''''''''''''''''''''''''''''''''''''''''
+
+
+''''Script Prompt: Exporting to .fbx a mesh with multiple texture projections will crash XSI
+''''Script Purpose: Dual. On first run, it should place all meshes with multiple texture projections into a group and alert the user to the name of the group so that the user can fix those problems.
+''''On the second run, or if it finds no meshes with multiple texture projections, it should alert the user that the mesh(es) are safe to export to the format.
+
+
+
+''''declare crap
+dim oList, oAllClusters, numProjections, numBadMeshes, oGroup
+
+numProjections = 0
+numBadMeshes = 0
+
+
+set oGroup = CreateGroup( &quot;Meshes_With_Multiple_Projections&quot; )
+
+
+set oList = SelectAll( False, False )
+
+for each item in oList
+	if typename(item) = &quot;X3DObject&quot; then
+		set oAllClusters = item.ActivePrimitive.Geometry.Clusters
+		numProjections = 0
+			for each cls in oAllClusters
+				
+				if cls.Type = &quot;sample&quot; then
+					logmessage &quot;projection cluster detected, incrementing super variable&quot;
+					numProjections = numProjections + 1
+					logmessage &quot;number of projections is &quot; &amp; numProjections
+					
+					if numProjections &gt; 1 then
+						numBadMeshes = numBadMeshes + 1
+						AddToGroup oGroup, item
+					else
+						end if
+				else
+					logmessage &quot;not a projection cluster&quot;
+					end if
+			next
+	else
+		end if
+next
+logmessage &quot;number of meshes that need to be fixed is &quot; &amp; numBadMeshes
+
+
+if numBadMeshes &lt; 1 then
+	RemoveGroup( &quot;Meshes_With_Multiple_Projections*&quot; )
+	msgbox &quot;There are no meshes in the scene with multiple texture projections. Hell Yeah.&quot;
+else
+	msgbox &quot;There are &quot; &amp; numBadMeshes &amp; &quot; meshes that need to be fixed in the scene.&quot;
+
+end if 
+]]&gt;</scripttext>
+            </item>
+            <item type="separator" mode="group_header" group_name="TRANSFER"></item>
+            <item type="command" name="Import Model"></item>
+            <item type="command" name="Export Model"></item>
+            <item type="script" name="FBXFileImport" cmdid="{6CBD3C61-FA45-C341-E3D5-FEE6F4361DAB}"></item>
+            <item type="script" name="FBXFileExport" cmdid="{1632890B-7128-6ED4-08D3-70946384B5E7}"></item>
+            <item type="script" name="ImportCrosswalk" cmdid="{73C627D2-380A-7BAA-A3EE-45B5F2FD6FF8}"></item>
+            <item type="script" name="ExportCrosswalk" cmdid="{3B5BD1DC-9F8D-03CC-24E3-6CF2C349E72D}"></item>
+            <item type="separator" mode="group_header" group_name="TESTING"></item>
+            <item type="scriptbutton" label="AJ_Inbetweener" userwidth="100" scriptengine="VBScript" tooltip="">
+               <scripttext>&lt;![CDATA['A Mayaesque Inbetween-shape Script for XSI in VBS
+'Great to use if you want to have numerous shapes and want to have them 
+'assigned to one slider, independent of time
+'by Ajlan (Jacobo) Altug (c) 2005
+'Usage: Just select the shape clips from the Animation Mixer
+'in the order you want them to morph from one another and execute... :)
+'Each and every inbetween morph slider will appear at the very bottom of the clip
+'compound you're currently in will also appear in the 'ShapeWeights' CPset, 
+'which is usually under the base object, and will bear the name &quot;Inbetween_1&quot;, &quot;Inbetween_1&quot; ans so on...
+'Befor you execute, please make sure that the shape clips you pick don't have any animation on them...
+'Other than that, Have fun! :)
+'To report bugs and things that go bump in the night, please e-mail me at:
+'ajlanaltug@yahoo.com
+
+dim KeyInsPref
+dim UKeyPref
+
+KeyInsPref = GetValue (&quot;preferences.animation.keyinsert&quot;)
+UKeyPref = GetValue (&quot;preferences.animation.usekeyprefs&quot;)
+SetValue &quot;preferences.animation.keyinsert&quot;, 2
+SetValue &quot;preferences.animation.usekeyprefs&quot;, 1
+
+
+set secim = GetValue (&quot;SelectionList&quot;)
+dim sayi
+sayi = secim.count
+	for j = 0 To sayi - 1
+	removeAnimation secim(j)&amp;&quot;.actionclip.weight&quot;,1
+	SetValue secim(j)&amp;&quot;.actionclip.weight&quot;, 0
+	Next 
+SelectObjectsFromAction , False
+set obje = GetValue (&quot;SelectionList&quot;)
+set yeniClip = SaveShapeKey (obje , , , , , 1 , &quot;Inbetween_1&quot;)
+RemoveAnimation yeniClip&amp;&quot;.actionclip.weight&quot;, 1
+dim yeniClipW
+yeniClipW = (yeniClip&amp;&quot;.actionclip.weight&quot;)
+dim ycWkayit
+ycWkayit = (&quot;l_fcv(&quot;&amp;yeniClipW&amp;&quot;)&quot;)
+
+	for i=0 To sayi-2
+
+	SetExpr secim(i)&amp;&quot;.actionclip.weight&quot;, ycWkayit
+	SetValue yeniClipW, (i) / (sayi)
+	SetValue secim(i)&amp;&quot;.actionclip.weight&quot;, 0
+	SetRelativeValues secim(i)&amp;&quot;.actionclip.weight&quot;
+	SetValue yeniClipW, (i+1) / (sayi)
+	SetValue secim(i)&amp;&quot;.actionclip.weight&quot;, 1
+	SetRelativeValues secim(i)&amp;&quot;.actionclip.weight&quot;
+	SetValue yeniClipW, (i+2) / (sayi)
+	SetValue secim(i)&amp;&quot;.actionclip.weight&quot;, 0
+	SetRelativeValues secim(i)&amp;&quot;.actionclip.weight&quot;
+
+	Next
+
+SetExpr secim(sayi-1)&amp;&quot;.actionclip.weight&quot;, ycWkayit
+SetValue yeniClipW, (sayi-1) / (sayi)
+SetValue secim(sayi-1)&amp;&quot;.actionclip.weight&quot;, 0
+SetRelativeValues secim(i)&amp;&quot;.actionclip.weight&quot;
+SetValue yeniClipW, ((sayi-1)+1) / (sayi)
+SetValue secim(sayi-1)&amp;&quot;.actionclip.weight&quot;, 1
+SetRelativeValues secim(i)&amp;&quot;.actionclip.weight&quot;
+
+SetValue &quot;preferences.animation.keyinsert&quot;, KeyInsPref
+SetValue &quot;preferences.animation.usekeyprefs&quot;, UKeyPref
+]]&gt;</scripttext>
+            </item>
+         </tab>
+      </tabs>
+   </shelf_view>
+</xsi_file>
